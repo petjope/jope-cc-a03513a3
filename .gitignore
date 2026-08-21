@@ -1,0 +1,24 @@
+# ---- JAMAIS PUBLIE : contient les donnees en clair ----
+# Sources des dashboards en clair (docs/ ne recoit que du chiffre)
+src/
+# Template avec les donnees du dernier mois
+templates/
+# Donnees manuelles : performance nominative par agent, chiffres de Zach
+data/manual-*.md
+# Phrase de passe, si un jour elle est ecrite dans un fichier
+.env
+*.secret
+# Documentation interne : regles metier, requetes, seuils, design de la protection.
+# Rien de personnel, mais aucune raison de l'exposer sur un depot public.
+CLAUDE.md
+README-SETUP.md
+.claude/
+
+# Logs d'execution planifiee
+run.log
+# Marqueurs "mois deja genere" (locaux, ne pas publier)
+data/.done-*
+# Divers Windows / editeurs
+Thumbs.db
+desktop.ini
+.DS_Store
