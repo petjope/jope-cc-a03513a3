@@ -5,6 +5,8 @@ src/
 templates/
 # Donnees manuelles : performance nominative par agent, chiffres de Zach
 data/manual-*.md
+# Exports Amazon Seller Central (unites vendues par produit)
+data/amazon/
 # Phrase de passe, si un jour elle est ecrite dans un fichier
 .env
 *.secret
@@ -22,3 +24,7 @@ data/.done-*
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Caches Python
+__pycache__/
+*.pyc
