@@ -27,13 +27,19 @@ set "MLABEL=%MNAME% %MYEAR%"
 
 echo ==== %DATE% %TIME% : reveil, jour %DAY%, mois cible %MONTH% ==== >> run.log
 
-REM Jour a partir duquel le run est autorise. Par defaut le 5.
-REM Exception ponctuelle demandee par Jeremy le 31/08/2026 : le 5 septembre 2026
-REM tombe un samedi, donc le dashboard d aout (mois cible 2026-08) peut partir
-REM des le vendredi 4. La regle s eteint toute seule : en octobre le mois cible
-REM devient 2026-09 et le seuil repasse a 5. Ne pas generaliser sans accord.
-set MINDAY=5
-if "%MONTH%"=="2026-08" set MINDAY=4
+REM Jour de livraison : le 5, sauf quand le 5 tombe un week-end. Dans ce cas on
+REM prend le jour ouvre le plus proche du 5 (regle de Jeremy du 4 septembre 2026) :
+REM   samedi 5  -> vendredi 4
+REM   dimanche 5 -> lundi 6
+REM Cette regle remplace et generalise l exception ponctuelle de septembre 2026,
+REM qui etait codee en dur sur le mois cible 2026-08 : le 5 septembre 2026 tombant
+REM un samedi, la regle rend 4 toute seule. Verifie sur 14 mois : le jour retenu
+REM n est jamais un samedi ni un dimanche.
+REM Le rattrapage reste actif : si le PC est eteint le jour J, la tache retente
+REM le lendemain et les jours suivants, le marqueur .done empechant tout doublon.
+for /f usebackq %%i in (`powershell -NoProfile -Command "$d5 = Get-Date -Day 5; switch ($d5.DayOfWeek) { 'Saturday' { 4 } 'Sunday' { 6 } default { 5 } }"`) do set MINDAY=%%i
+if not defined MINDAY set MINDAY=5
+echo      jour de livraison retenu ce mois-ci : le %MINDAY% >> run.log
 
 if %DAY% LSS %MINDAY% (
   echo      rien a faire avant le %MINDAY% >> run.log
@@ -90,6 +96,14 @@ git add -A >> run.log 2>&1
 git commit -m "CC dashboard %MONTH% : echec de generation, page de statut" >> run.log 2>&1
 git push >> run.log 2>&1
 echo ==== %DATE% %TIME% : ECHEC %MONTH% - page de statut publiee, nouvelle tentative demain 9h00 ==== >> run.log
+
+REM Prevenir Jeremy. C'est le silence de l'echec du 04/09/2026 qui a coute une
+REM journee : une page de statut ne sert a rien si personne ne va la regarder.
+REM Passe par le connecteur Gmail de la session claude, donc sans identifiants
+REM SMTP a stocker. Si claude est lui-meme en cause, l'envoi echoue aussi et la
+REM page de statut reste le seul signal : c'est accepte, pas une regression.
+call claude -p "Envoie un email court en anglais a jeremy@petjope.com, et a personne d'autre. Objet : 'Jope CC Dashboard %MONTH% - generation failed'. Dis que le run mensuel du dashboard %MONTH% a echoue ce matin, qu'une page de statut nommant l'etape fautive a ete publiee a la place sur %PAGES_URL%, et que la tache retentera automatiquement demain a 9h00. N'ecris aucune phrase de passe. N'ajoute rien d'autre." --permission-mode acceptEdits --allowedTools "mcp__claude_ai_Gmail__send_message" >> run.log 2>&1
+echo      notification d'echec envoyee (code %ERRORLEVEL%) >> run.log
 
 :fin
 endlocal
