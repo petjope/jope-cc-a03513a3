@@ -1,0 +1,16 @@
+{
+  "months": {
+    "2026-08": {
+      "total_calls": 164,
+      "abandoned": 33,
+      "answered_by_agent": 34,
+      "to_voicemail": 97,
+      "abandon_rate_pct": 20.1,
+      "reached_human_pct": 20.7,
+      "avg_hold_mmss": "0:24",
+      "avg_talk_mmss": "4:19",
+      "outbound_calls": 49,
+      "period": "08/01/2026 - 08/31/2026"
+    }
+  }
+}

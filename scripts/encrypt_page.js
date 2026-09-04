@@ -71,10 +71,12 @@ const shell = `<!DOCTYPE html>
   button:disabled{background:#9AA7AC;cursor:default}
   .err{font-size:13px;color:#A32D2D;margin-top:10px;min-height:18px}
   .foot{font-size:11px;color:#9AA7AC;margin-top:16px;line-height:1.5}
+  .wait{font-size:13px;color:#5A6B72}
+  [hidden]{display:none!important}
 </style>
 </head>
 <body>
-<div class="box">
+<div class="box" id="box" hidden>
   <h1>Jope · Customer Care</h1>
   <p class="sub">${label ? label + ' · ' : ''}Internal report. Enter the team passphrase to open it.</p>
   <form id="f">
@@ -83,11 +85,51 @@ const shell = `<!DOCTYPE html>
     <button id="b" type="submit">Open the dashboard</button>
   </form>
   <div class="err" id="e"></div>
-  <div class="foot">Contents are encrypted. Neither GitHub nor anyone without the passphrase can read this page.</div>
+  <div class="foot">Contents are encrypted. Neither GitHub nor anyone without the passphrase can read this page.
+  The passphrase is remembered for this browser tab only, so moving between months does not ask again;
+  closing the tab forgets it.</div>
 </div>
+<div class="wait" id="wait">Opening...</div>
 <script>
 const DATA = ${JSON.stringify(payload)};
 const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+
+// La phrase est gardee pour l onglet courant, sous une cle commune a toutes les
+// pages du site : passer d un mois a l autre ne redemande donc rien. sessionStorage
+// et non localStorage : l oubli au retrait de l onglet est voulu. Chaque page a son
+// propre sel, donc on garde la phrase elle-meme et non la cle derivee.
+const KEY = 'jope-cc-pass';
+const box = document.getElementById('box');
+const wait = document.getElementById('wait');
+
+function remember(pass) { try { sessionStorage.setItem(KEY, pass); } catch (e) {} }
+function forget() { try { sessionStorage.removeItem(KEY); } catch (e) {} }
+function recall() { try { return sessionStorage.getItem(KEY); } catch (e) { return null; } }
+
+function showForm(message) {
+  wait.hidden = true;
+  box.hidden = false;
+  document.getElementById('e').textContent = message || '';
+  const i = document.getElementById('p');
+  i.value = '';
+  i.focus();
+}
+
+async function unlock(pass) {
+  if (!window.crypto || !crypto.subtle) {
+    throw new Error('nocrypto');
+  }
+  const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: b64(DATA.salt), iterations: DATA.iter, hash: 'SHA-256' },
+    material, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  const clear = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(DATA.iv) }, key, b64(DATA.ct));
+  const html = new TextDecoder().decode(clear);
+  remember(pass);
+  document.open();
+  document.write(html);
+  document.close();
+}
 
 document.getElementById('f').addEventListener('submit', async ev => {
   ev.preventDefault();
@@ -95,29 +137,34 @@ document.getElementById('f').addEventListener('submit', async ev => {
   const btn = document.getElementById('b');
   const pass = document.getElementById('p').value;
   if (!pass) return;
-  if (!window.crypto || !crypto.subtle) {
-    err.textContent = 'This browser blocks decryption on a local file. Open the published page over https.';
-    return;
-  }
   btn.disabled = true;
   btn.textContent = 'Opening...';
   err.textContent = '';
   try {
-    const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
-    const key = await crypto.subtle.deriveKey(
-      { name: 'PBKDF2', salt: b64(DATA.salt), iterations: DATA.iter, hash: 'SHA-256' },
-      material, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
-    const clear = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(DATA.iv) }, key, b64(DATA.ct));
-    const html = new TextDecoder().decode(clear);
-    document.open();
-    document.write(html);
-    document.close();
+    await unlock(pass);
   } catch (e) {
     btn.disabled = false;
     btn.textContent = 'Open the dashboard';
-    err.textContent = 'Wrong passphrase.';
+    err.textContent = e && e.message === 'nocrypto'
+      ? 'This browser blocks decryption on a local file. Open the published page over https.'
+      : 'Wrong passphrase.';
   }
 });
+
+// Ouverture directe si l onglet a deja servi. Une phrase devenue invalide, par
+// exemple apres un changement d equipe, est effacee et le formulaire revient.
+(async () => {
+  const saved = recall();
+  if (!saved) { showForm(); return; }
+  try {
+    await unlock(saved);
+  } catch (e) {
+    forget();
+    showForm(e && e.message === 'nocrypto'
+      ? 'This browser blocks decryption on a local file. Open the published page over https.'
+      : '');
+  }
+})();
 </script>
 </body>
 </html>

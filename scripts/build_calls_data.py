@@ -17,7 +17,7 @@ Les durees FreedomVoice sont en minutes decimales.
 Usage :
   python scripts/build_calls_data.py <generalStats> <userStatisticsReport> [--month YYYY-MM]
 """
-import base64, json, sys, xlrd
+import base64, json, os, sys, xlrd
 
 # Les moyennes hold / talk sont ponderees par le volume total du jour. Cette
 # ponderation reproduit exactement les 0:25 et 4:35 du fichier de Zach ; une
@@ -120,14 +120,56 @@ def build(general_path, user_path, month=None):
     }
 
 
+def update_history(path, month, res):
+    """Ajoute le mois au fichier d historique et renvoie la fenetre glissante.
+
+    Motif (demande de Jeremy, 4 septembre 2026) : la section 06 doit se lire dans
+    le temps comme les autres. Les exports FreedomVoice etant ecrases chaque mois
+    dans Drive, le seul moyen de garder une serie est de conserver nous-memes
+    l agregat au moment ou on le lit. Le fichier ne contient que des totaux
+    mensuels, aucun nom d agent et aucun numero, donc il peut vivre dans le depot.
+    """
+    hist = {}
+    if os.path.exists(path):
+        with open(path, encoding='utf-8') as fh:
+            hist = json.load(fh).get('months', {})
+    inb = res['inbound']
+    hist[month] = {
+        'total_calls': inb['total_calls'],
+        'abandoned': inb['abandoned_calls'],
+        'answered_by_agent': inb['answered_by_agent'],
+        'to_voicemail': inb['to_voicemail'],
+        'abandon_rate_pct': inb['abandon_rate_pct'],
+        'reached_human_pct': inb['reached_human_pct'],
+        'avg_hold_mmss': inb['avg_hold_mmss'],
+        'avg_talk_mmss': inb['avg_talk_mmss'],
+        'outbound_calls': res['agents']['outbound_calls'],
+        'period': res['period']['start'] + ' - ' + res['period']['end'],
+    }
+    with open(path, 'w', encoding='utf-8') as fh:
+        json.dump({'months': dict(sorted(hist.items()))}, fh, indent=2)
+        fh.write(chr(10))
+    # fenetre glissante : 6 mois au plus, du plus ancien au plus recent
+    keys = sorted(hist)[-6:]
+    return [dict(hist[k], month=k) for k in keys]
+
+
 if __name__ == '__main__':
     argv = sys.argv[1:]
     month = None
+    history = None
     if '--month' in argv:
         i = argv.index('--month')
         month = argv[i + 1] if i + 1 < len(argv) else None
         del argv[i:i + 2]
+    if '--history' in argv:
+        i = argv.index('--history')
+        history = argv[i + 1] if i + 1 < len(argv) else None
+        del argv[i:i + 2]
     args = [a for a in argv if not a.startswith('--')]
     if len(args) != 2:
         raise SystemExit(__doc__)
-    print(json.dumps(build(args[0], args[1], month), indent=2))
+    res = build(args[0], args[1], month)
+    if history and month:
+        res['history'] = update_history(history, month, res)
+    print(json.dumps(res, indent=2))
