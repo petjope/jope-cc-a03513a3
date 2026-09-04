@@ -7,6 +7,9 @@ templates/
 data/manual-*.md
 # Exports Amazon Seller Central (unites vendues par produit)
 data/amazon/
+# Exports FreedomVoice deposes par Zach (section 06), .xls binaire ou dump base64.
+# Agreges, sans numero de telephone client, mais nominatifs par agent.
+data/calls/
 # Phrase de passe, si un jour elle est ecrite dans un fichier
 .env
 *.secret

@@ -17,7 +17,7 @@ import json, re, sys, collections
 # Exclus : leaflets, bandanas, cartes cadeaux, e-books, produits de test.
 SHOPIFY_CONSUMABLE = {
     '2026-01': 13069, '2026-02': 14413, '2026-03': 17149, '2026-04': 15088,
-    '2026-05': 19527, '2026-06': 19436, '2026-07': 21449,
+    '2026-05': 19527, '2026-06': 19436, '2026-07': 21449, '2026-08': 21386,
 }
 # Amazon US, unites commandees (sales_and_traffic_report_by_date)
 AMAZON_DAILY = {
@@ -28,17 +28,28 @@ AMAZON_DAILY = {
  '2026-05': [142,159,177,164,191,175,148,144,163,182,188,169,215,179,155,150,193,188,157,163,160,148,160,148,183,182,168,178,151,163,186],
  '2026-06': [215,165,209,174,152,171,182,188,205,214,187,141,159,239,223,205,228,194,178,184,216,196,780,350,196,164,154,219,194,204],
  '2026-07': [156,163,171,190,217,172,195,196,198,170,192,201,219,217,195,201,200,173,208,214,199,186,212,173,193,250,268,198,186,201,208],
+ '2026-08': [192,240,272,217,236,227,183,190,228,252,255,222,259,198,202,232,262,201,247,200,185,203,248,243,235,224,224,210,230,257,239],
 }
 # Comptages par tag Gorgias (source de verite du volume)
+# 2026-07 corrige de 22 a 23 pour le QC : la requete du 04/09/2026 renvoie 23,
+# ce qui est aussi le chiffre publie dans la page de juillet.
 GORGIAS_TAG = {
  '2026-01': (42, 4), '2026-02': (28, 3), '2026-03': (43, 12), '2026-04': (28, 12),
- '2026-05': (41, 14), '2026-06': (47, 26), '2026-07': (51, 22),
+ '2026-05': (41, 14), '2026-06': (47, 26), '2026-07': (51, 23), '2026-08': (74, 19),
 }
 # Comptages AE du resume de Jamie (seule source pour janvier a avril)
 JAMIE_AE = {'2026-01': 41, '2026-02': 23, '2026-03': 35, '2026-04': 26, '2026-05': 37, '2026-06': 34}
 
-MONTHS = ['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06','2026-07']
-LABELS = {'2026-01':'Jan','2026-02':'Feb','2026-03':'Mar','2026-04':'Apr','2026-05':'May','2026-06':'Jun','2026-07':'Jul'}
+# Valeurs de registre figees, publiees le 27/08/2026 et non recalculees.
+# Motif : au 04/09/2026 le log detaille JAERS ne contient plus que 5 lignes de
+# mai contre 21 lors du pull du 27/08. Les lignes ont ete retirees ou archivees
+# hors du log cote Google Sheet. Recalculer ferait passer la barre de mai de 21
+# a 5 sans qu aucun cas ait disparu dans la realite. Mai reste donc a 21 et
+# l ecart est signale en note. A revoir avec Jamie.
+AE_REGISTER_PINNED = {'2026-05': 21}
+
+MONTHS = ['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06','2026-07','2026-08']
+LABELS = {'2026-01':'Jan','2026-02':'Feb','2026-03':'Mar','2026-04':'Apr','2026-05':'May','2026-06':'Jun','2026-07':'Jul','2026-08':'Aug'}
 
 # ---------------------------------------------------------------- familles QC
 QC_FAMILIES = [
@@ -51,7 +62,11 @@ QC_FAMILIES = [
     ('Batch inconsistency', r'different from|completely different|not look or feel|changed the formula|not the same as'),
     ('Refusal to eat',      r"won'?t eat|will not eat|refuse|won'?t touch|not eat them|stopped eating"),
     ('Packaging / seal',    r'seal|zipper|torn|leak|resealab|bag was open|package.{0,12}damag'),
-    ('Missing / wrong',     r'missing|wrong (item|product)|did ?n.?t receive|did not receive|only received'),
+    # "consistently short" / "short 1 or 2 chews" ajoutes apres relecture de la
+    # ligne non classee d aout 2026 : un sachet incomplet est un compte manquant,
+    # pas un defaut de texture. Mot-cle plutot que classement a la main, pour que
+    # le mois suivant le retrouve tout seul.
+    ('Missing / wrong',     r'missing|wrong (item|product)|did ?n.?t receive|did not receive|only received|consistently short|short \d'),
     ('Pending information', r'waiting on customer|awaiting (customer|response)'),
 ]
 
@@ -99,6 +114,12 @@ def norm_product(text):
     if 'CALM' in t:                   return 'Calm'
     return None
 
+def is_amazon(row):
+    """Canal Amazon : la note (col G) ou la colonne "Amazon FIle" (col M) le nomme."""
+    notes = row[6] if len(row) > 6 else ''
+    azfile = row[12] if len(row) > 12 else ''
+    return 'amazon' in f'{notes} {azfile}'.lower()
+
 def qc_family(reason, notes):
     t0 = (notes or '').strip()
     if not t0 or t0.lower() == 'notes':
@@ -142,6 +163,8 @@ def main():
     qc_by_month = collections.Counter()
     qc_fam = collections.defaultdict(collections.Counter)
     qc_prod = collections.defaultdict(collections.Counter)
+    qc_chan = collections.defaultdict(collections.Counter)
+    qc_chan_fam = collections.defaultdict(collections.Counter)
     unclassified = []
     seen = set()
     for r in qc_rows:
@@ -160,7 +183,15 @@ def main():
         qc_fam[m][fam] += 1
         if fam == 'Unclassified':
             unclassified.append((m, (r[6] or '')[:150]))
-        qc_prod[m][norm_product(r[6]) or 'unknown'] += 1
+        # Produit : la reference CRN (colonne H) porte le prefixe produit et est
+        # remplie sur ~92% des lignes ; le texte des notes ne sert qu en secours.
+        qc_prod[m][norm_product(r[7] if len(r) > 7 else '')
+                   or norm_product(r[6]) or 'unknown'] += 1
+        # Canal : le registre est la seule source qui le porte. Une plainte compte
+        # comme Amazon quand la note ou la colonne "Amazon FIle" le nomme.
+        chan = 'amazon' if is_amazon(r) else 'dtc'
+        qc_chan[m][chan] += 1
+        qc_chan_fam[(m, chan)][fam] += 1
 
     print('=== DENOMINATEURS (unites consommables) ===')
     print('mois | Shopify DTC | Amazon US | total')
@@ -170,23 +201,63 @@ def main():
         units[m] = SHOPIFY_CONSUMABLE[m] + az
         print(f'{LABELS[m]:4} | {SHOPIFY_CONSUMABLE[m]:11} | {az:9} | {units[m]:6}')
 
+    def ae_register(m):
+        if m in AE_REGISTER_PINNED:
+            return AE_REGISTER_PINNED[m]
+        return ae_by_month[m] if m >= '2026-05' else JAMIE_AE.get(m, 0)
+
     print()
     print('=== ADVERSE EVENTS ===')
-    print('mois | tag Gorgias | registre | pour 1000 u (tag) | Tier3')
+    # Le taux publie est registre / unites DTC SEULES (regle du denominateur par
+    # canal, 25/08/2026 : 2 cas sur 115 de mai a juillet venaient d Amazon alors
+    # qu Amazon pese 22% des unites). La colonne tag/DTC ne sert qu a comparer :
+    # elle porte la serie jusqu a juin, le registre la porte a partir de juillet.
+    # Ne jamais comparer une valeur registre a une valeur tag (rupture de methode).
+    print('mois | tag Gorgias | registre | registre/1000 DTC | tag/1000 DTC | Tier3')
     for m in MONTHS:
         tag = GORGIAS_TAG[m][0]
-        reg = ae_by_month[m] if m >= '2026-05' else JAMIE_AE.get(m, 0)
+        reg = ae_register(m)
+        dtc = SHOPIFY_CONSUMABLE[m]
         t3 = ae_tier[m].get('Tier 3', 0)
-        print(f'{LABELS[m]:4} | {tag:11} | {reg:8} | {1000*tag/units[m]:17.2f} | {t3}')
+        print(f'{LABELS[m]:4} | {tag:11} | {reg:8} | {1000*reg/dtc:17.2f} |'
+              f' {1000*tag/dtc:12.2f} | {t3}')
 
     print()
     print('=== QUALITY COMPLAINTS ===')
-    print('mois | tag Gorgias | registre | pour 1000 u (registre) | crumbling')
+    # Seuils poses le 28/08/2026 (decision Jeremy, demande de Christine) :
+    #   - taux QC toutes plaintes, tous canaux : alerte 0.75, cible 0.35 (KPI d en tete)
+    #   - crumbling seul, sous-ensemble : alerte 0.50, cible 0.25 (carte de la section 07)
+    # Les deux paires sont calibrees par la meme methode, moyenne + 1/2 ecart-type de
+    # leur propre serie, et declenchent les memes trois mois : mars, avril et juin.
+    QC_ALERT, QC_TARGET = 0.75, 0.35
+    CR_ALERT, CR_TARGET = 0.50, 0.25
+    def flag(rate, alert, target):
+        return 'ALERTE' if rate > alert else ('  ok  ' if rate > target else ' cible')
+    print('mois | tag Gorgias | registre | QC /1000 (tous canaux) | seuil | crumbling | cr /1000 | seuil')
     for m in MONTHS:
         tag = GORGIAS_TAG[m][1]
         reg = qc_by_month[m]
         cr = qc_fam[m].get('Crumbling / broken', 0)
-        print(f'{LABELS[m]:4} | {tag:11} | {reg:8} | {1000*reg/units[m]:22.2f} | {cr}')
+        qc_rate = 1000*reg/units[m]
+        cr_rate = 1000*cr/units[m]
+        print(f'{LABELS[m]:4} | {tag:11} | {reg:8} | {qc_rate:22.2f} | {flag(qc_rate, QC_ALERT, QC_TARGET)} |'
+              f' {cr:9} | {cr_rate:8.2f} | {flag(cr_rate, CR_ALERT, CR_TARGET)}')
+
+    print()
+    print('=== QC par canal (regle du denominateur par canal) ===')
+    print('mois | cas DTC | cas AZ | u. DTC | u. AZ | DTC/1000 | AZ/1000 | total/1000')
+    for m in MONTHS:
+        dtc_n, az_n = qc_chan[m].get('dtc', 0), qc_chan[m].get('amazon', 0)
+        dtc_u, az_u = SHOPIFY_CONSUMABLE[m], sum(AMAZON_DAILY[m])
+        print(f'{LABELS[m]:4} | {dtc_n:7} | {az_n:6} | {dtc_u:6} | {az_u:5} |'
+              f' {1000*dtc_n/dtc_u:8.2f} | {1000*az_n/az_u:7.2f} |'
+              f' {1000*(dtc_n+az_n)/units[m]:10.2f}')
+    print('moyennes de l annee   DTC : %.2f   Amazon : %.2f' % (
+        1000*sum(qc_chan[m].get('dtc', 0) for m in MONTHS)/sum(SHOPIFY_CONSUMABLE[m] for m in MONTHS),
+        1000*sum(qc_chan[m].get('amazon', 0) for m in MONTHS)/sum(sum(AMAZON_DAILY[m]) for m in MONTHS)))
+    print('crumbling par canal, annee   DTC : %.2f   Amazon : %.2f' % (
+        1000*sum(qc_chan_fam[(m, 'dtc')].get('Crumbling / broken', 0) for m in MONTHS)/sum(SHOPIFY_CONSUMABLE[m] for m in MONTHS),
+        1000*sum(qc_chan_fam[(m, 'amazon')].get('Crumbling / broken', 0) for m in MONTHS)/sum(sum(AMAZON_DAILY[m]) for m in MONTHS)))
 
     print()
     print('=== AE par categorie (mai a juillet, detail disponible) ===')
@@ -208,12 +279,14 @@ def main():
         vals = [qc_fam[m].get(f,0) for m in MONTHS]
         print(f.ljust(22), ' '.join(str(v).rjust(4) for v in vals), str(sum(vals)).rjust(7))
 
+    last = MONTHS[-1]
     print()
-    print('=== produit (juillet) ===')
-    print('AE :', dict(ae_prod['2026-07']))
-    print('QC :', dict(qc_prod['2026-07']))
+    print(f'=== produit ({LABELS[last]}) ===')
+    print('AE :', dict(ae_prod[last]))
+    print('QC :', dict(qc_prod[last]))
+    print('QC canal :', dict(qc_chan[last]))
     print()
-    print('=== lots avec le plus d AE (mai a juillet) ===')
+    print(f'=== lots avec le plus d AE (detail disponible, mai a {LABELS[last]}) ===')
     for lot, n in ae_lot.most_common(6):
         print(f'   lot {lot} : {n} AE, soit {1000*n/2700:.1f} pour 1000 unites du lot')
     print()
