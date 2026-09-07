@@ -133,9 +133,43 @@ def qc_family(reason, notes):
             return name
     return 'Unclassified'
 
+def truncation_guard(name, rows, months):
+    """Le connecteur Drive tronque un Sheet volumineux sans le dire : il ne
+    renvoie que les lignes les plus recentes, et la coupure avance a mesure que
+    l onglet grossit. Constate sur JAERS le 7 septembre 2026, ou mai est passe de
+    21 lignes le 27 aout a 5 le 4 septembre puis 0, alors que le registre en
+    portait 37. Un mois tronque se lit comme un mois calme : il faut donc refuser
+    de le rapporter plutot que de publier un chiffre trop bas.
+
+    Regle : le mois le plus ancien reellement lisible est celui qui suit la plus
+    vieille ligne rendue, puisque cette ligne peut elle-meme etre le reste d un
+    mois coupe en deux. Tout mois de la fenetre situe avant est declare
+    inaccessible. Si le mois rapporte en fait partie, on s arrete : la page
+    afficherait un chiffre faux sans que personne le voie.
+    """
+    seen = sorted(m for m in (month_of(r[1]) for r in rows) if m)
+    if not seen:
+        raise SystemExit(f'{name} : aucune ligne datee lue, dump vide ou illisible.')
+    oldest = seen[0]
+    unreachable = [m for m in months if m <= oldest]
+    if not unreachable:
+        return []
+    print(f'!!! TRONCATURE {name} : la plus vieille ligne rendue est datee de {oldest}.')
+    print(f'    Mois de la fenetre qui ne peuvent pas etre comptes : {", ".join(unreachable)}.')
+    print('    Le connecteur Drive ne rend que la fin du Sheet. Ne pas publier ces')
+    print('    mois depuis ce dump : les demander a Jamie ou les laisser en pending.')
+    if months[-1] in unreachable:
+        raise SystemExit(f'{name} : le mois rapporte ({months[-1]}) est dans la zone tronquee, arret.')
+    return unreachable
+
+
 def main():
     ae_rows = load_rows(sys.argv[1], 13)
     qc_rows = load_rows(sys.argv[2], 7)
+    ae_unreachable = truncation_guard('JAERS', ae_rows, MONTHS)
+    qc_unreachable = truncation_guard('QCRS', qc_rows, MONTHS)
+    if ae_unreachable or qc_unreachable:
+        print()
 
     ae_by_month = collections.Counter()
     ae_cat = collections.defaultdict(collections.Counter)
