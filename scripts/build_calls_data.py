@@ -71,9 +71,15 @@ def build(general_path, user_path, month=None):
     broken = [r['UserDisplayName'].strip() for r in agents
               if r['HandledCalls'] != r['InboundCalls'] + r['OutboundCalls']]
 
-    # Les appels ni abandonnes ni decroches par un agent sont partis en
-    # messagerie ou sur le standard automatique.
-    voicemail = total - abandoned - inbound
+    # Ce qui reste quand on retire les abandons et les appels decroches par un
+    # agent. Ne PAS appeler ce groupe "messagerie" : FreedomVoice ne publie
+    # aucun compteur de messages vocaux, et ce reste melange ceux qui ont laisse
+    # un message et ceux qui ont raccroche sur l annonce. Rien dans l export ne
+    # permet de les separer. Le champ Gorgias "Customer Source = Voicemail"
+    # compte une autre population, messages laisses sur d autres lignes inclus,
+    # et un meme appel peut y produire deux tickets : les deux ne se recoupent
+    # pas et n ont pas a le faire. Constate avec Zach et Christine le 8/09/2026.
+    no_agent = total - abandoned - inbound
 
     return {
         'month': month,
@@ -83,7 +89,7 @@ def build(general_path, user_path, month=None):
             'abandoned_calls': int(abandoned),
             'abandon_rate_pct': round(100 * abandoned / total, 1),
             'answered_by_agent': int(inbound),
-            'to_voicemail': int(voicemail),
+            'no_agent_reached': int(no_agent),
             'reached_human_pct': round(100 * inbound / total, 1),
             'avg_hold_min': round(weighted('dblHoldTimeAvg'), 2),
             'avg_hold_mmss': mmss(weighted('dblHoldTimeAvg')),
@@ -138,7 +144,7 @@ def update_history(path, month, res):
         'total_calls': inb['total_calls'],
         'abandoned': inb['abandoned_calls'],
         'answered_by_agent': inb['answered_by_agent'],
-        'to_voicemail': inb['to_voicemail'],
+        'no_agent_reached': inb['no_agent_reached'],
         'abandon_rate_pct': inb['abandon_rate_pct'],
         'reached_human_pct': inb['reached_human_pct'],
         'avg_hold_mmss': inb['avg_hold_mmss'],

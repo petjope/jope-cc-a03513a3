@@ -48,6 +48,13 @@ JAMIE_AE = {'2026-01': 41, '2026-02': 23, '2026-03': 35, '2026-04': 26, '2026-05
 # l ecart est signale en note. A revoir avec Jamie.
 AE_REGISTER_PINNED = {'2026-05': 21}
 
+# Seuil d alerte par lot, porte de 5 a 10 cas dans le mois le 8 septembre 2026
+# sur instruction de Christine. 10 cas sur environ 2 700 unites font 0,37%,
+# au-dessus de la plage historique observee de 0,04% a 0,33% : c est un
+# detecteur d aberration, pas un indicateur de derive. La derive est suivie
+# chaque semaine par Christine, hors de ce rapport mensuel.
+LOT_ALERT = 10
+
 MONTHS = ['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06','2026-07','2026-08']
 LABELS = {'2026-01':'Jan','2026-02':'Feb','2026-03':'Mar','2026-04':'Apr','2026-05':'May','2026-06':'Jun','2026-07':'Jul','2026-08':'Aug'}
 
@@ -176,6 +183,7 @@ def main():
     ae_tier = collections.defaultdict(collections.Counter)
     ae_prod = collections.defaultdict(collections.Counter)
     ae_lot = collections.Counter()
+    ae_lot_month = collections.defaultdict(collections.Counter)
     ae_skipped = collections.Counter()
     for r in ae_rows:
         m = month_of(r[1])
@@ -193,6 +201,7 @@ def main():
         lot = re.sub(r'\D', '', r[10] or '')
         if len(lot) >= 6:
             ae_lot[lot] += 1
+            ae_lot_month[m][lot] += 1
 
     qc_by_month = collections.Counter()
     qc_fam = collections.defaultdict(collections.Counter)
@@ -320,9 +329,16 @@ def main():
     print('QC :', dict(qc_prod[last]))
     print('QC canal :', dict(qc_chan[last]))
     print()
-    print(f'=== lots avec le plus d AE (detail disponible, mai a {LABELS[last]}) ===')
+    # L alerte porte sur un mois, pas sur la fenetre : un cumul de quatre mois
+    # ferait franchir le seuil a un lot tranquille. On imprime donc le mois
+    # rapporte separement, avec le drapeau, et le cumul seulement pour contexte.
+    print(f'=== lots du mois rapporte ({LABELS[last]}), seuil d alerte {LOT_ALERT} cas ===')
+    for lot, n in ae_lot_month[last].most_common(8):
+        flag = '  <<< ALERTE' if n >= LOT_ALERT else ''
+        print(f'   lot {lot} : {n} AE, soit {1000*n/2700:.1f} pour 1000 unites du lot{flag}')
+    print(f'=== lots cumules sur la fenetre lisible, contexte seulement ===')
     for lot, n in ae_lot.most_common(6):
-        print(f'   lot {lot} : {n} AE, soit {1000*n/2700:.1f} pour 1000 unites du lot')
+        print(f'   lot {lot} : {n} AE')
     print()
     print('=== lignes AE non-AE ignorees ===', dict(ae_skipped))
     print('=== QC non classees a lire a la main :', len(unclassified))
