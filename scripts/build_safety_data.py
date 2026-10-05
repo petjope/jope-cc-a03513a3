@@ -18,6 +18,7 @@ import json, re, sys, collections
 SHOPIFY_CONSUMABLE = {
     '2026-01': 13069, '2026-02': 14413, '2026-03': 17149, '2026-04': 15088,
     '2026-05': 19527, '2026-06': 19436, '2026-07': 21449, '2026-08': 21386,
+    '2026-09': 22950,
 }
 # Amazon US, unites commandees (sales_and_traffic_report_by_date)
 AMAZON_DAILY = {
@@ -29,13 +30,22 @@ AMAZON_DAILY = {
  '2026-06': [215,165,209,174,152,171,182,188,205,214,187,141,159,239,223,205,228,194,178,184,216,196,780,350,196,164,154,219,194,204],
  '2026-07': [156,163,171,190,217,172,195,196,198,170,192,201,219,217,195,201,200,173,208,214,199,186,212,173,193,250,268,198,186,201,208],
  '2026-08': [192,240,272,217,236,227,183,190,228,252,255,222,259,198,202,232,262,201,247,200,185,203,248,243,235,224,224,210,230,257,239],
+ # Septembre 2026 : Windsor.ai et le connecteur Amazon n etaient pas autorises
+ # dans la session du 5 octobre 2026. None = inconnu : les taux Amazon et toutes
+ # canaux du mois sont alors affiches "pending", jamais estimes.
+ '2026-09': None,
 }
 # Comptages par tag Gorgias (source de verite du volume)
 # 2026-07 corrige de 22 a 23 pour le QC : la requete du 04/09/2026 renvoie 23,
 # ce qui est aussi le chiffre publie dans la page de juillet.
+# Relus le 5 octobre 2026 : l entrepot Gorgias a change de base entre le 9/09
+# et le 5/10 (is_spam reduit au drapeau manuel, tickets fusionnes/supprimes
+# visibles). Serie recomptee avec deleted_datetime IS NULL ; les anciennes
+# valeurs etaient (42,4) (28,3) (43,12) (28,12) (41,14) (47,26) (51,23) (74,19).
 GORGIAS_TAG = {
- '2026-01': (42, 4), '2026-02': (28, 3), '2026-03': (43, 12), '2026-04': (28, 12),
- '2026-05': (41, 14), '2026-06': (47, 26), '2026-07': (51, 23), '2026-08': (74, 19),
+ '2026-01': (46, 4), '2026-02': (29, 3), '2026-03': (46, 13), '2026-04': (28, 12),
+ '2026-05': (42, 15), '2026-06': (51, 27), '2026-07': (56, 25), '2026-08': (79, 21),
+ '2026-09': (47, 7),
 }
 # Comptages AE du resume de Jamie (seule source pour janvier a avril)
 JAMIE_AE = {'2026-01': 41, '2026-02': 23, '2026-03': 35, '2026-04': 26, '2026-05': 37, '2026-06': 34}
@@ -46,7 +56,10 @@ JAMIE_AE = {'2026-01': 41, '2026-02': 23, '2026-03': 35, '2026-04': 26, '2026-05
 # hors du log cote Google Sheet. Recalculer ferait passer la barre de mai de 21
 # a 5 sans qu aucun cas ait disparu dans la realite. Mai reste donc a 21 et
 # l ecart est signale en note. A revoir avec Jamie.
-AE_REGISTER_PINNED = {'2026-05': 21}
+# Leve le 5 octobre 2026 : l export CSV rend le registre entier et mai compte
+# 37 lignes, le chiffre de Jamie. La serie AE est desormais lue sur le registre
+# de janvier a aujourd hui ; JAMIE_AE ne sert plus que de controle.
+AE_REGISTER_PINNED = {}
 
 # Seuil d alerte par lot, porte de 5 a 10 cas dans le mois le 8 septembre 2026
 # sur instruction de Christine. 10 cas sur environ 2 700 unites font 0,37%,
@@ -55,8 +68,8 @@ AE_REGISTER_PINNED = {'2026-05': 21}
 # chaque semaine par Christine, hors de ce rapport mensuel.
 LOT_ALERT = 10
 
-MONTHS = ['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06','2026-07','2026-08']
-LABELS = {'2026-01':'Jan','2026-02':'Feb','2026-03':'Mar','2026-04':'Apr','2026-05':'May','2026-06':'Jun','2026-07':'Jul','2026-08':'Aug'}
+MONTHS = ['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06','2026-07','2026-08','2026-09']
+LABELS = {'2026-01':'Jan','2026-02':'Feb','2026-03':'Mar','2026-04':'Apr','2026-05':'May','2026-06':'Jun','2026-07':'Jul','2026-08':'Aug','2026-09':'Sep'}
 
 # ---------------------------------------------------------------- familles QC
 QC_FAMILIES = [
@@ -73,7 +86,10 @@ QC_FAMILIES = [
     # ligne non classee d aout 2026 : un sachet incomplet est un compte manquant,
     # pas un defaut de texture. Mot-cle plutot que classement a la main, pour que
     # le mois suivant le retrouve tout seul.
-    ('Missing / wrong',     r'missing|wrong (item|product)|did ?n.?t receive|did not receive|only received|consistently short|short \d'),
+    # "discrepancy in the quantity" / "contains only" ajoutes le 5 octobre 2026
+    # apres relecture de la ligne non classee de septembre : un sachet de 59
+    # chews au lieu de 60 est un compte manquant, comme le sachet incomplet d aout.
+    ('Missing / wrong',     r'missing|wrong (item|product)|did ?n.?t receive|did not receive|only received|consistently short|short \d|discrepancy in the quantity|contains only|fewer chews'),
     ('Pending information', r'waiting on customer|awaiting (customer|response)'),
 ]
 
@@ -85,12 +101,38 @@ def month_of(s):
     return f'{m.group(3)}-{int(m.group(1)):02d}' if m else None
 
 def load_rows(path, min_cols):
-    content = json.load(open(path, encoding='utf-8'))['fileContent']
+    """Accepte deux formats :
+      - le dump JSON {fileContent} de read_file_content (tableau markdown),
+        qui depuis le 5 octobre 2026 ne rend plus que six lignes d echantillon ;
+      - l export CSV complet obtenu par download_file_content avec
+        exportMimeType text/csv (base64 dans {content}, ou CSV deja decode).
+    L export CSV ne porte que le premier onglet du Sheet, qui est bien le
+    registre de l annee en cours pour JAERS comme pour QCRS, et il n est pas
+    tronque : mai 2026 y compte 37 lignes, le chiffre de Jamie.
+    """
+    import base64, csv, io
+    raw = open(path, encoding='utf-8').read()
     out = []
-    for line in content.split('\n'):
-        if not line.startswith('|'):
-            continue
-        c = cells(line)
+    try:
+        j = json.loads(raw)
+    except ValueError:
+        j = None
+    if isinstance(j, dict) and 'fileContent' in j:
+        for line in j['fileContent'].split('\n'):
+            if not line.startswith('|'):
+                continue
+            c = cells(line)
+            if len(c) >= min_cols and month_of(c[1]):
+                out.append(c)
+        if len(out) < 20:
+            print(f'!!! {path} : {len(out)} lignes seulement. read_file_content ne rend plus')
+            print('    qu un echantillon : utiliser download_file_content avec exportMimeType text/csv.')
+        return out
+    text = j['content'] if isinstance(j, dict) and 'content' in j else raw
+    if not text.lstrip().startswith(('Previous', 'Friday', 'Date', ',', '"')):
+        text = base64.b64decode(text).decode('utf-8')
+    for c in csv.reader(io.StringIO(text)):
+        c = [x.strip() for x in c]
         if len(c) >= min_cols and month_of(c[1]):
             out.append(c)
     return out
@@ -239,15 +281,20 @@ def main():
     print('=== DENOMINATEURS (unites consommables) ===')
     print('mois | Shopify DTC | Amazon US | total')
     units = {}
+    def az_units(m):
+        d = AMAZON_DAILY.get(m)
+        return sum(d) if d else None
+    def fmt(x, w=6, dec=2):
+        return ('pending' if x is None else f'{x:.{dec}f}').rjust(w)
     for m in MONTHS:
-        az = sum(AMAZON_DAILY[m])
-        units[m] = SHOPIFY_CONSUMABLE[m] + az
-        print(f'{LABELS[m]:4} | {SHOPIFY_CONSUMABLE[m]:11} | {az:9} | {units[m]:6}')
+        az = az_units(m)
+        units[m] = SHOPIFY_CONSUMABLE[m] + az if az is not None else None
+        print(f'{LABELS[m]:4} | {SHOPIFY_CONSUMABLE[m]:11} | {str(az or "pending"):>9} | {str(units[m] or "pending"):>7}')
 
     def ae_register(m):
         if m in AE_REGISTER_PINNED:
             return AE_REGISTER_PINNED[m]
-        return ae_by_month[m] if m >= '2026-05' else JAMIE_AE.get(m, 0)
+        return ae_by_month[m] if ae_by_month[m] else JAMIE_AE.get(m, 0)
 
     print()
     print('=== ADVERSE EVENTS ===')
@@ -281,6 +328,9 @@ def main():
         tag = GORGIAS_TAG[m][1]
         reg = qc_by_month[m]
         cr = qc_fam[m].get('Crumbling / broken', 0)
+        if units[m] is None:
+            print(f'{LABELS[m]:4} | {tag:11} | {reg:8} | {"pending (Amazon units)":>22} |        | {cr:9} |  pending |')
+            continue
         qc_rate = 1000*reg/units[m]
         cr_rate = 1000*cr/units[m]
         print(f'{LABELS[m]:4} | {tag:11} | {reg:8} | {qc_rate:22.2f} | {flag(qc_rate, QC_ALERT, QC_TARGET)} |'
@@ -291,28 +341,32 @@ def main():
     print('mois | cas DTC | cas AZ | u. DTC | u. AZ | DTC/1000 | AZ/1000 | total/1000')
     for m in MONTHS:
         dtc_n, az_n = qc_chan[m].get('dtc', 0), qc_chan[m].get('amazon', 0)
-        dtc_u, az_u = SHOPIFY_CONSUMABLE[m], sum(AMAZON_DAILY[m])
-        print(f'{LABELS[m]:4} | {dtc_n:7} | {az_n:6} | {dtc_u:6} | {az_u:5} |'
-              f' {1000*dtc_n/dtc_u:8.2f} | {1000*az_n/az_u:7.2f} |'
-              f' {1000*(dtc_n+az_n)/units[m]:10.2f}')
-    print('moyennes de l annee   DTC : %.2f   Amazon : %.2f' % (
+        dtc_u, az_u = SHOPIFY_CONSUMABLE[m], az_units(m)
+        print(f'{LABELS[m]:4} | {dtc_n:7} | {az_n:6} | {dtc_u:6} | {str(az_u or "pend."):>5} |'
+              f' {1000*dtc_n/dtc_u:8.2f} | {fmt(1000*az_n/az_u if az_u else None, 7)} |'
+              f' {fmt(1000*(dtc_n+az_n)/units[m] if units[m] else None, 10)}')
+    # Les moyennes de l annee ne portent que sur les mois dont le denominateur
+    # est connu : un mois Amazon manquant sort du calcul au lieu de le fausser.
+    known = [m for m in MONTHS if az_units(m) is not None]
+    print('moyennes de l annee (Amazon sur les mois connus : %s)   DTC : %.2f   Amazon : %.2f' % (
+        ','.join(LABELS[m] for m in known),
         1000*sum(qc_chan[m].get('dtc', 0) for m in MONTHS)/sum(SHOPIFY_CONSUMABLE[m] for m in MONTHS),
-        1000*sum(qc_chan[m].get('amazon', 0) for m in MONTHS)/sum(sum(AMAZON_DAILY[m]) for m in MONTHS)))
+        1000*sum(qc_chan[m].get('amazon', 0) for m in known)/sum(az_units(m) for m in known)))
     print('crumbling par canal, annee   DTC : %.2f   Amazon : %.2f' % (
         1000*sum(qc_chan_fam[(m, 'dtc')].get('Crumbling / broken', 0) for m in MONTHS)/sum(SHOPIFY_CONSUMABLE[m] for m in MONTHS),
-        1000*sum(qc_chan_fam[(m, 'amazon')].get('Crumbling / broken', 0) for m in MONTHS)/sum(sum(AMAZON_DAILY[m]) for m in MONTHS)))
+        1000*sum(qc_chan_fam[(m, 'amazon')].get('Crumbling / broken', 0) for m in known)/sum(az_units(m) for m in known)))
 
     print()
-    print('=== AE par categorie (mai a juillet, detail disponible) ===')
+    print('=== AE par categorie (registre complet) ===')
     cats = ['GI: vomiting / upset','GI: diarrhea','Skin / allergic','Other','Lameness','Seizure']
-    print('categorie'.ljust(22), ' '.join(LABELS[m].rjust(5) for m in MONTHS[4:]))
+    print('categorie'.ljust(22), ' '.join(LABELS[m].rjust(5) for m in MONTHS))
     for c in cats:
-        print(c.ljust(22), ' '.join(str(ae_cat[m].get(c,0)).rjust(5) for m in MONTHS[4:]))
+        print(c.ljust(22), ' '.join(str(ae_cat[m].get(c,0)).rjust(5) for m in MONTHS))
 
     print()
-    print('=== AE par Tier (mai a juillet) ===')
+    print('=== AE par Tier (registre complet) ===')
     for t in ['Tier 1','Tier 2','Tier 3','Unknown']:
-        print(t.ljust(22), ' '.join(str(ae_tier[m].get(t,0)).rjust(5) for m in MONTHS[4:]))
+        print(t.ljust(22), ' '.join(str(ae_tier[m].get(t,0)).rjust(5) for m in MONTHS))
 
     print()
     print('=== QC par famille (janvier a juillet) ===')
@@ -328,11 +382,15 @@ def main():
     print('AE :', dict(ae_prod[last]))
     print('QC :', dict(qc_prod[last]))
     print('QC canal :', dict(qc_chan[last]))
+    print('QC canal par mois :', {LABELS[m]: dict(qc_chan[m]) for m in MONTHS})
+    print('AE registre par mois :', {LABELS[m]: ae_register(m) for m in MONTHS}, ' controle Jamie :', JAMIE_AE)
+    print('AE produit par mois :', {LABELS[m]: dict(ae_prod[m]) for m in MONTHS[-3:]})
     print()
     # L alerte porte sur un mois, pas sur la fenetre : un cumul de quatre mois
     # ferait franchir le seuil a un lot tranquille. On imprime donc le mois
     # rapporte separement, avec le drapeau, et le cumul seulement pour contexte.
-    print(f'=== lots du mois rapporte ({LABELS[last]}), seuil d alerte {LOT_ALERT} cas ===')
+    with_lot = sum(ae_lot_month[last].values())
+    print(f'=== lots du mois rapporte ({LABELS[last]}), seuil d alerte {LOT_ALERT} cas ; {with_lot} cas sur {ae_by_month[last]} portent un lot ===')
     for lot, n in ae_lot_month[last].most_common(8):
         flag = '  <<< ALERTE' if n >= LOT_ALERT else ''
         print(f'   lot {lot} : {n} AE, soit {1000*n/2700:.1f} pour 1000 unites du lot{flag}')
