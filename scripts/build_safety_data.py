@@ -33,8 +33,24 @@ AMAZON_DAILY = {
  # Septembre 2026 : Windsor.ai et le connecteur Amazon n etaient pas autorises
  # dans la session du 5 octobre 2026. None = inconnu : les taux Amazon et toutes
  # canaux du mois sont alors affiches "pending", jamais estimes.
+ # Lu le 23 octobre 2026 via data/amazon/2026-09.json (voir ci-dessous).
  '2026-09': None,
 }
+# Depuis le 23 octobre 2026 : un fichier data/amazon/{YYYY-MM}.json, cle
+# "daily_units_ordered", complete ou remplace l entree du mois sans toucher au
+# script. C est ce que le rafraichissement automatique (/cc-refresh) ecrit quand
+# les unites Amazon arrivent apres la livraison du 5. Le dossier est hors depot.
+import os as _os
+_AZ_DIR = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), 'data', 'amazon')
+for _m in list(AMAZON_DAILY):
+    _f = _os.path.join(_AZ_DIR, _m + '.json')
+    if _os.path.exists(_f):
+        try:
+            _d = json.load(open(_f, encoding='utf-8')).get('daily_units_ordered')
+            if _d and len(_d) >= 28:
+                AMAZON_DAILY[_m] = list(_d)
+        except (ValueError, OSError) as _e:
+            print(f'!! {_f} illisible ({_e}), entree du script conservee', file=sys.stderr)
 # Comptages par tag Gorgias (source de verite du volume)
 # 2026-07 corrige de 22 a 23 pour le QC : la requete du 04/09/2026 renvoie 23,
 # ce qui est aussi le chiffre publie dans la page de juillet.

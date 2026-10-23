@@ -23,6 +23,9 @@ README-SETUP.md
 run.log
 # Marqueurs "mois deja genere" (locaux, ne pas publier)
 data/.done-*
+# Rapport de verification d'un rafraichissement : reprend des chiffres de la page
+data/refresh-*.md
+# (data/pending-*.json est versionne : etat des sources, aucune donnee personnelle)
 # Divers Windows / editeurs
 Thumbs.db
 desktop.ini

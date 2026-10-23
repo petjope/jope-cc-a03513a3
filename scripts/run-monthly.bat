@@ -45,10 +45,7 @@ if %DAY% LSS %MINDAY% (
   echo      rien a faire avant le %MINDAY% >> run.log
   goto :fin
 )
-if exist "data\.done-%MONTH%" (
-  echo      %MONTH% deja livre, rien a faire >> run.log
-  goto :fin
-)
+if exist "data\.done-%MONTH%" goto :refresh
 if "%CC_PASSPHRASE%"=="" (
   echo ==== %DATE% %TIME% : ECHEC %MONTH% - CC_PASSPHRASE absente, rien publie ==== >> run.log
   goto :fin
@@ -60,7 +57,7 @@ REM IMPORTANT : "call". Sur PATH, claude se resout en claude.cmd. Appeler un .cm
 REM depuis un .bat SANS call transfere le controle definitivement et ce script ne
 REM reprend jamais la main : c'est ce qui a fait echouer le run du 04/09/2026 en
 REM silence, sans ligne OK ni ECHEC et sans marqueur .done. Ne pas retirer le call.
-call claude -p "/cc-monthly" --permission-mode acceptEdits --allowedTools "mcp__claude_ai_Gorgias_connector__get_gaia_instructions,mcp__claude_ai_Gorgias_connector__query,mcp__claude_ai_Gorgias_connector__get_tables,mcp__claude_ai_Gorgias_connector__get_table_metadata,mcp__claude_ai_Shopify__graphql_query,mcp__claude_ai_Shopify__run-analytics-query,mcp__claude_ai_Google_Drive__search_files,mcp__claude_ai_Google_Drive__get_file_metadata,mcp__claude_ai_Google_Drive__read_file_content,mcp__claude_ai_Google_Drive__download_file_content,mcp__claude_ai_Windsor_ai__get_data,mcp__claude_ai_Windsor_ai__get_fields,mcp__claude_ai_Gmail__send_message,Read,Write,Edit,Glob,Grep,Bash(git *),Bash(python *),Bash(node *)" >> run.log 2>&1
+call claude -p "/cc-monthly" --permission-mode acceptEdits --allowedTools "mcp__claude_ai_Gorgias_connector__get_gaia_instructions,mcp__claude_ai_Gorgias_connector__query,mcp__claude_ai_Gorgias_connector__get_tables,mcp__claude_ai_Gorgias_connector__get_table_metadata,mcp__claude_ai_Shopify__graphql_query,mcp__claude_ai_Shopify__run-analytics-query,mcp__claude_ai_Google_Drive__search_files,mcp__claude_ai_Google_Drive__get_file_metadata,mcp__claude_ai_Google_Drive__read_file_content,mcp__claude_ai_Google_Drive__download_file_content,mcp__claude_ai_Jope_Sheets__list_sheets,mcp__claude_ai_Jope_Sheets__read_range,mcp__claude_ai_Windsor_ai__get_connectors,mcp__claude_ai_Windsor_ai__get_data,mcp__claude_ai_Windsor_ai__get_fields,mcp__claude_ai_Gmail__send_message,Read,Write,Edit,Glob,Grep,Bash(git *),Bash(python *),Bash(node *)" >> run.log 2>&1
 set CLAUDE_RC=%ERRORLEVEL%
 echo      claude termine, code %CLAUDE_RC% >> run.log
 
@@ -104,6 +101,32 @@ REM SMTP a stocker. Si claude est lui-meme en cause, l'envoi echoue aussi et la
 REM page de statut reste le seul signal : c'est accepte, pas une regression.
 call claude -p "Envoie un email court en anglais a jeremy@petjope.com, et a personne d'autre. Objet : 'Jope CC Dashboard %MONTH% - generation failed'. Dis que le run mensuel du dashboard %MONTH% a echoue ce matin, qu'une page de statut nommant l'etape fautive a ete publiee a la place sur %PAGES_URL%, et que la tache retentera automatiquement demain a 9h00. N'ecris aucune phrase de passe. N'ajoute rien d'autre." --permission-mode acceptEdits --allowedTools "mcp__claude_ai_Gmail__send_message" >> run.log 2>&1
 echo      notification d'echec envoyee (code %ERRORLEVEL%) >> run.log
+goto :fin
+
+REM ---- Mois deja livre : rafraichissement automatique (regle de Jeremy du 23/10/2026) ----
+REM Une page livree le 5 porte souvent des cartes "pending" : export d'appels pas
+REM encore depose, fichier manuel absent, unites Amazon non lues. Jusqu'ici ces
+REM cartes restaient vides tant que quelqu'un ne relancait pas la generation a la
+REM main. Desormais, chaque matin ou le mois est deja livre :
+REM   1. check_refresh.py lit data\pending-%MONTH%.json et repond 0 seulement s'il
+REM      reste une source en attente non encore sondee aujourd'hui (aucun appel
+REM      reseau, aucun jeton depense quand il n'y a rien a attendre) ;
+REM   2. l'agent /cc-refresh sonde les trackers (Drive, Windsor, Sheets). S'il n'y a
+REM      rien de neuf il note la date et s'arrete. Sinon il met a jour les seules
+REM      cartes concernees, et NE PUBLIE QU'APRES verify_refresh.py : controle
+REM      bloquant qui refuse tout changement hors perimetre, tout chiffre Gorgias ou
+REM      Shopify qui bouge, et tout "pending" restant pour une source arrivee.
+REM   3. Jeremy recoit la liste exacte des chiffres qui ont bouge, pour validation.
+:refresh
+python scripts\check_refresh.py %MONTH% >> run.log 2>&1
+if errorlevel 1 goto :fin
+if "%CC_PASSPHRASE%"=="" (
+  echo      refresh %MONTH% impossible : CC_PASSPHRASE absente >> run.log
+  goto :fin
+)
+echo      %MONTH% deja livre : sources en attente, sondage des trackers par /cc-refresh >> run.log
+call claude -p "/cc-refresh %MONTH%" --permission-mode acceptEdits --allowedTools "mcp__claude_ai_Google_Drive__search_files,mcp__claude_ai_Google_Drive__get_file_metadata,mcp__claude_ai_Google_Drive__download_file_content,mcp__claude_ai_Jope_Sheets__list_sheets,mcp__claude_ai_Jope_Sheets__read_range,mcp__claude_ai_Windsor_ai__get_connectors,mcp__claude_ai_Windsor_ai__get_data,mcp__claude_ai_Gmail__send_message,Read,Write,Edit,Glob,Grep,Bash(git *),Bash(python *),Bash(node *),Bash(copy *),Bash(cp *)" >> run.log 2>&1
+echo      refresh %MONTH% termine, code !ERRORLEVEL! >> run.log
 
 :fin
 endlocal

@@ -1,0 +1,53 @@
+{
+  "month": "2026-09",
+  "published": "2026-10-05",
+  "last_check": "2026-10-23",
+  "last_refresh": {
+    "date": "2026-10-23",
+    "sources": ["amazon", "registers", "returns"]
+  },
+  "sources": {
+    "calls": {
+      "status": "pending",
+      "provider": "Zach",
+      "where": "Drive folder 1e9uuNpdq6vDLklJaNFohT9iIX8kiepRX (Call Metrics 2026 from FreedomVoice)",
+      "baseline_modified": "2026-09-01T21:11:50Z",
+      "check": "a generalStats*.xls and userStatisticsReport*.xls pair with modifiedTime after baseline_modified whose period covers 2026-09-01 to 2026-09-30 (build_calls_data.py --month 2026-09 --history data/calls-history.json)",
+      "checked_on": "2026-10-23"
+    },
+    "manual": {
+      "status": "pending",
+      "provider": "Zach via Jeremy",
+      "where": "data/manual-2026-09.md",
+      "check": "file exists",
+      "checked_on": "2026-10-23"
+    },
+    "outbound_sheet": {
+      "status": "pending",
+      "provider": "Christine",
+      "where": "unknown, no link received",
+      "check": "a spreadsheet id written in this entry under sheet_id, then read through Jope_Sheets",
+      "checked_on": "2026-10-23"
+    },
+    "amazon": {
+      "status": "done",
+      "read_on": "2026-10-23",
+      "where": "Windsor.ai amazon_sp, account A1WOW8XVZ9NH4W-US, saved in data/amazon/2026-09.json",
+      "value": "6000 units ordered, 30 days"
+    },
+    "registers": {
+      "status": "done",
+      "read_on": "2026-10-23",
+      "where": "JAERS 1l0bUyHw1UCqV0XUdP7eYuGfKMfhoyEpNdNa9ZkGPS0k and QCRS 1Qdrlzk60chYY56plelQ_r_hnb8vOvHaL0_ydtjU2POM, CSV export via Drive download_file_content",
+      "jaers_modified": "2026-10-20T22:06:46Z",
+      "qcrs_modified": "2026-10-22T21:40:57Z",
+      "value": "AE Sep 47 (was 46), Mar 35 (32), Jun 34 (33); QC Sep 6 unchanged"
+    },
+    "returns": {
+      "status": "done",
+      "read_on": "2026-10-23",
+      "where": "Return Tracker 1MZUaVb4ItBVgc8SwQ6EF6LEQDk8YGUr3wQ5w8DJD_zk, tab Returns, column A via Jope_Sheets read_range",
+      "value": "Sep 175 labels (was 176 on Oct 5)"
+    }
+  }
+}
