@@ -34,6 +34,12 @@ ALLOWED = {
     'registers':      {'07'},
     'returns':        {'04'},
     'outbound_sheet': {'06'},
+    # Ajoute le 5 novembre 2026. Le connecteur Gorgias demandait une
+    # re-authorisation le matin de la livraison d octobre : aucune des requetes
+    # A a F n a pu partir et les sections 01 a 05 sont parties entierement en
+    # "pending". Cette source n existe que pour ce cas, une lecture qui n a
+    # jamais eu lieu le 5, jamais pour relire des chiffres deja publies.
+    'gorgias':        {'01', '02', '03', '04', '05'},
 }
 ALWAYS = {'exec', 'meta'}
 
@@ -162,10 +168,21 @@ def check_refresh(month):
             problems.append('Bloc modifie hors perimetre : %s (sources arrivees : %s).' % (label, ', '.join(arrived) or 'aucune'))
 
     # 2. KPIs geles
+    # Un KPI gele est un chiffre DEJA PUBLIE : il ne bouge pas, parce qu il
+    # bouge tout seul avec le temps (reponses tardives, conversions) et qu une
+    # page dont les niveaux changent a chaque relecture n est plus comparable a
+    # elle-meme. Un KPI encore sur "pending" n a jamais ete lu : il n y a aucun
+    # niveau a proteger, et le remplir une premiere fois est precisement ce que
+    # le rafraichissement sert a faire. C est la seule breche, et elle se ferme
+    # d elle-meme des que la valeur est ecrite.
     for lab in FROZEN_KPIS:
         a, b = kpi_value(prev, lab), kpi_value(cur, lab)
-        if a != b:
-            problems.append('KPI gele modifie : %s, %s -> %s. Les chiffres Gorgias et Shopify ne bougent pas lors d un rafraichissement.' % (lab, a, b))
+        if a == b:
+            continue
+        if (a or '').strip().lower() == 'pending':
+            lines.append('KPI %s renseigne pour la premiere fois : pending -> %s.' % (lab, b))
+            continue
+        problems.append('KPI gele modifie : %s, %s -> %s. Les chiffres Gorgias et Shopify ne bougent pas lors d un rafraichissement.' % (lab, a, b))
 
     # 3. Plus de "pending" dans les cartes des sources arrivees
     for s in arrived:

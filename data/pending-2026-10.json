@@ -1,0 +1,72 @@
+{
+  "month": "2026-10",
+  "published": "2026-11-05",
+  "last_check": "2026-11-05",
+  "last_refresh": null,
+  "sources": {
+    "gorgias": {
+      "status": "pending",
+      "provider": "Zach / Jeremy, connector authorisation",
+      "where": "Gorgias connector, warehouse gaia.tickets, canonical queries A to F",
+      "check": "mcp get_gaia_instructions then query A returns rows instead of 'requires re-authorization (token expired)'",
+      "checked_on": "2026-11-05",
+      "last_seen": "every call on 2026-11-05 returned 'requires re-authorization (token expired)', including get_gaia_instructions; no query ran",
+      "note": "Gorgias figures are normally frozen at the read of the 5th and never re-read. October was never read at all, so there is no published level to protect: the refresh fills these cards once and that first read becomes the frozen value. verify_refresh.py allows this only while the KPI still reads 'pending'.",
+      "fills": [
+        "executive KPIs: Contact rate, Tickets replied, Jay solo share, PC conversion",
+        "01 Channel mix, Auto-handled social comments, Why customers write",
+        "02 Speed, One-touch rate, Jay coverage",
+        "03 CSAT survey check",
+        "04 Potential customers",
+        "05 When tickets arrive",
+        "07 Gorgias tag bar, and the contact-reason cross-check on the adverse event mix"
+      ]
+    },
+    "calls": {
+      "status": "pending",
+      "provider": "Zach",
+      "where": "Drive folder 1e9uuNpdq6vDLklJaNFohT9iIX8kiepRX (Call Metrics 2026 from FreedomVoice)",
+      "baseline_modified": "2026-09-01T21:11:50Z",
+      "check": "a generalStats*.xls and userStatisticsReport*.xls pair with modifiedTime after baseline_modified whose period covers 2026-10-01 to 2026-10-31 (build_calls_data.py --month 2026-10 --history data/calls-history.json)",
+      "checked_on": "2026-11-05",
+      "last_seen": "folder still holds only the 2026-09-01 pair (generalStats (1).xls, userStatisticsReport (1).xls, modified 2026-09-01T21:10Z), Older subfolder only the 2026-08-26 pair, checked 2026-11-05",
+      "note": "September is missing too and is not expected to be recoverable from FreedomVoice, which overwrites its exports. If a September pair appears, run build_calls_data.py for 2026-09 as well so the history keeps both months."
+    },
+    "manual": {
+      "status": "pending",
+      "provider": "Zach via Jeremy",
+      "where": "data/manual-2026-10.md",
+      "check": "file exists",
+      "checked_on": "2026-11-05",
+      "last_seen": "no manual file since data/manual-2026-07.md"
+    },
+    "outbound_sheet": {
+      "status": "pending",
+      "provider": "Christine",
+      "where": "unknown, no link received",
+      "check": "a spreadsheet id written in this entry under sheet_id, then read through Jope_Sheets",
+      "checked_on": "2026-11-05"
+    },
+    "amazon": {
+      "status": "done",
+      "read_on": "2026-11-05",
+      "where": "Windsor.ai amazon_sp, account A1WOW8XVZ9NH4W-US, saved in data/amazon/2026-10.json",
+      "value": "6363 units ordered, 31 days"
+    },
+    "registers": {
+      "status": "done",
+      "read_on": "2026-11-05",
+      "where": "JAERS 1l0bUyHw1UCqV0XUdP7eYuGfKMfhoyEpNdNa9ZkGPS0k and QCRS 1Qdrlzk60chYY56plelQ_r_hnb8vOvHaL0_ydtjU2POM, CSV export via Drive download_file_content",
+      "jaers_modified": "2026-11-01T21:51:48.992Z",
+      "qcrs_modified": "2026-10-31T21:10:19.325Z",
+      "value": "AE Oct 41, QC Oct 5 (crumbling 2, off smell 2, colour 1); monthly AE totals unchanged since 2026-10-23 but the June to September category mix was relabelled at source",
+      "note": "The weekly pull covers tickets created before 6am Saturday, so the last days of October may still land later. Re-read on every refresh."
+    },
+    "returns": {
+      "status": "done",
+      "read_on": "2026-11-05",
+      "where": "Return Tracker 1MZUaVb4ItBVgc8SwQ6EF6LEQDk8YGUr3wQ5w8DJD_zk, tab Returns, column A via Jope_Sheets read_range",
+      "value": "Oct 184 labels (183 dated + 1 RTS); Jun 139, Jul 205, Aug 235, Sep 175 all reproduced"
+    }
+  }
+}

@@ -125,7 +125,13 @@ if "%CC_PASSPHRASE%"=="" (
   goto :fin
 )
 echo      %MONTH% deja livre : sources en attente, sondage des trackers par /cc-refresh >> run.log
-call claude -p "/cc-refresh %MONTH%" --permission-mode acceptEdits --allowedTools "mcp__claude_ai_Google_Drive__search_files,mcp__claude_ai_Google_Drive__get_file_metadata,mcp__claude_ai_Google_Drive__download_file_content,mcp__claude_ai_Jope_Sheets__list_sheets,mcp__claude_ai_Jope_Sheets__read_range,mcp__claude_ai_Windsor_ai__get_connectors,mcp__claude_ai_Windsor_ai__get_data,mcp__claude_ai_Gmail__send_message,Read,Write,Edit,Glob,Grep,Bash(git *),Bash(python *),Bash(node *),Bash(copy *),Bash(cp *)" >> run.log 2>&1
+REM Les deux outils Gorgias sont dans cette liste depuis le 05/11/2026. Motif : ce
+REM matin-la le connecteur demandait une re-authorisation et le run d'octobre est
+REM parti sans une seule donnee ticket, quatre KPIs d'en-tete en "pending". Sans
+REM ces outils ici, le rafraichissement ne pourrait jamais combler ce trou. Il ne
+REM relit PAS les chiffres Gorgias deja publies : verify_refresh.py n'autorise le
+REM changement que tant que le KPI affiche encore "pending".
+call claude -p "/cc-refresh %MONTH%" --permission-mode acceptEdits --allowedTools "mcp__claude_ai_Gorgias_connector__get_gaia_instructions,mcp__claude_ai_Gorgias_connector__query,mcp__claude_ai_Google_Drive__search_files,mcp__claude_ai_Google_Drive__get_file_metadata,mcp__claude_ai_Google_Drive__download_file_content,mcp__claude_ai_Jope_Sheets__list_sheets,mcp__claude_ai_Jope_Sheets__read_range,mcp__claude_ai_Windsor_ai__get_connectors,mcp__claude_ai_Windsor_ai__get_data,mcp__claude_ai_Gmail__send_message,Read,Write,Edit,Glob,Grep,Bash(git *),Bash(python *),Bash(node *),Bash(copy *),Bash(cp *)" >> run.log 2>&1
 echo      refresh %MONTH% termine, code !ERRORLEVEL! >> run.log
 
 :fin

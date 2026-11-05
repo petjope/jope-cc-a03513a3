@@ -18,7 +18,7 @@ import json, re, sys, collections
 SHOPIFY_CONSUMABLE = {
     '2026-01': 13069, '2026-02': 14413, '2026-03': 17149, '2026-04': 15088,
     '2026-05': 19527, '2026-06': 19436, '2026-07': 21449, '2026-08': 21386,
-    '2026-09': 22950,
+    '2026-09': 22950, '2026-10': 21954,
 }
 # Amazon US, unites commandees (sales_and_traffic_report_by_date)
 AMAZON_DAILY = {
@@ -35,6 +35,10 @@ AMAZON_DAILY = {
  # canaux du mois sont alors affiches "pending", jamais estimes.
  # Lu le 23 octobre 2026 via data/amazon/2026-09.json (voir ci-dessous).
  '2026-09': None,
+ # Octobre 2026 lu le 5 novembre 2026 par Windsor.ai, 31 jours, voir
+ # data/amazon/2026-10.json. Le premier appel revient en "pending" : le
+ # rappeler a l identique jusqu a "done", c est la meme requete qui continue.
+ '2026-10': None,
 }
 # Depuis le 23 octobre 2026 : un fichier data/amazon/{YYYY-MM}.json, cle
 # "daily_units_ordered", complete ou remplace l entree du mois sans toucher au
@@ -62,6 +66,11 @@ GORGIAS_TAG = {
  '2026-01': (46, 4), '2026-02': (29, 3), '2026-03': (46, 13), '2026-04': (28, 12),
  '2026-05': (42, 15), '2026-06': (51, 27), '2026-07': (56, 25), '2026-08': (79, 21),
  '2026-09': (47, 7),
+ # Octobre 2026 : le connecteur Gorgias demandait une re-authorisation le matin
+ # du 5 novembre, aucune requete n a pu partir. (None, None) = colonne de
+ # comparaison vide, jamais zero : un zero se lirait comme "aucun cas tague".
+ # La colonne ne sert qu a comparer, le taux publie vient du registre.
+ '2026-10': (None, None),
 }
 # Comptages AE du resume de Jamie (seule source pour janvier a avril)
 JAMIE_AE = {'2026-01': 41, '2026-02': 23, '2026-03': 35, '2026-04': 26, '2026-05': 37, '2026-06': 34}
@@ -84,8 +93,8 @@ AE_REGISTER_PINNED = {}
 # chaque semaine par Christine, hors de ce rapport mensuel.
 LOT_ALERT = 10
 
-MONTHS = ['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06','2026-07','2026-08','2026-09']
-LABELS = {'2026-01':'Jan','2026-02':'Feb','2026-03':'Mar','2026-04':'Apr','2026-05':'May','2026-06':'Jun','2026-07':'Jul','2026-08':'Aug','2026-09':'Sep'}
+MONTHS = ['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06','2026-07','2026-08','2026-09','2026-10']
+LABELS = {'2026-01':'Jan','2026-02':'Feb','2026-03':'Mar','2026-04':'Apr','2026-05':'May','2026-06':'Jun','2026-07':'Jul','2026-08':'Aug','2026-09':'Sep','2026-10':'Oct'}
 
 # ---------------------------------------------------------------- familles QC
 QC_FAMILIES = [
@@ -108,6 +117,16 @@ QC_FAMILIES = [
     ('Missing / wrong',     r'missing|wrong (item|product)|did ?n.?t receive|did not receive|only received|consistently short|short \d|discrepancy in the quantity|contains only|fewer chews'),
     ('Pending information', r'waiting on customer|awaiting (customer|response)'),
 ]
+
+# Gestes du client, pas defauts du produit. "I've tried breaking them up in her
+# food" decrit ce que le client fait du chew, pas un chew arrive casse : le mot
+# "break" de la famille crumbling l attrapait quand meme. Trouve le 5 novembre
+# 2026 sur la plainte d octobre qui parle surtout d un exces de curcuma et de
+# taches jaunes, et qui part desormais dans "Colour / mould". Ces tournures sont
+# effacees du texte avant de chercher les familles. Verifie sur toute la serie
+# janvier-octobre : cette ligne est la seule que la regle deplace.
+CUSTOMER_ACTION = re.compile(
+    r'break(?:ing)?\s+(?:them|it|the\s+\w+)\s+up|broke\s+(?:them|it)\s+up|breaking\s+up')
 
 def cells(line):
     return [x.strip() for x in line.strip('|').split('|')]
@@ -192,7 +211,7 @@ def qc_family(reason, notes):
     r = (reason or '').lower()
     if 'packaging' in r or 'bags' in r:            return 'Packaging / seal'
     if 'shipping' in r or 'transit' in r:          return 'Shipping damage'
-    t = (notes or '').lower()
+    t = CUSTOMER_ACTION.sub(' ', (notes or '').lower())
     for name, pattern in QC_FAMILIES:
         if re.search(pattern, t):
             return name
@@ -325,8 +344,8 @@ def main():
         reg = ae_register(m)
         dtc = SHOPIFY_CONSUMABLE[m]
         t3 = ae_tier[m].get('Tier 3', 0)
-        print(f'{LABELS[m]:4} | {tag:11} | {reg:8} | {1000*reg/dtc:17.2f} |'
-              f' {1000*tag/dtc:12.2f} | {t3}')
+        print(f'{LABELS[m]:4} | {str(tag if tag is not None else "n/d"):>11} | {reg:8} |'
+              f' {1000*reg/dtc:17.2f} | {fmt(1000*tag/dtc if tag is not None else None, 12)} | {t3}')
 
     print()
     print('=== QUALITY COMPLAINTS ===')
@@ -342,14 +361,15 @@ def main():
     print('mois | tag Gorgias | registre | QC /1000 (tous canaux) | seuil | crumbling | cr /1000 | seuil')
     for m in MONTHS:
         tag = GORGIAS_TAG[m][1]
+        tag_s = str(tag if tag is not None else 'n/d').rjust(11)
         reg = qc_by_month[m]
         cr = qc_fam[m].get('Crumbling / broken', 0)
         if units[m] is None:
-            print(f'{LABELS[m]:4} | {tag:11} | {reg:8} | {"pending (Amazon units)":>22} |        | {cr:9} |  pending |')
+            print(f'{LABELS[m]:4} | {tag_s} | {reg:8} | {"pending (Amazon units)":>22} |        | {cr:9} |  pending |')
             continue
         qc_rate = 1000*reg/units[m]
         cr_rate = 1000*cr/units[m]
-        print(f'{LABELS[m]:4} | {tag:11} | {reg:8} | {qc_rate:22.2f} | {flag(qc_rate, QC_ALERT, QC_TARGET)} |'
+        print(f'{LABELS[m]:4} | {tag_s} | {reg:8} | {qc_rate:22.2f} | {flag(qc_rate, QC_ALERT, QC_TARGET)} |'
               f' {cr:9} | {cr_rate:8.2f} | {flag(cr_rate, CR_ALERT, CR_TARGET)}')
 
     print()

@@ -1,7 +1,7 @@
 {
   "month": "2026-09",
   "published": "2026-10-05",
-  "last_check": "2026-10-23",
+  "last_check": "2026-10-29",
   "last_refresh": {
     "date": "2026-10-23",
     "sources": ["amazon", "registers", "returns"]
@@ -13,21 +13,24 @@
       "where": "Drive folder 1e9uuNpdq6vDLklJaNFohT9iIX8kiepRX (Call Metrics 2026 from FreedomVoice)",
       "baseline_modified": "2026-09-01T21:11:50Z",
       "check": "a generalStats*.xls and userStatisticsReport*.xls pair with modifiedTime after baseline_modified whose period covers 2026-09-01 to 2026-09-30 (build_calls_data.py --month 2026-09 --history data/calls-history.json)",
-      "checked_on": "2026-10-23"
+      "checked_on": "2026-10-29",
+      "last_seen": "folder still holds only the 2026-09-01 pair (generalStats (1).xls, userStatisticsReport (1).xls, modified 2026-09-01T21:10Z), Older subfolder only the 2026-08-26 pair, checked 2026-10-29",
+      "skipped_on": "2026-10-27",
+      "skipped_reason": "Google Drive connector not available in the session, folder not listed (also on 2026-10-26)"
     },
     "manual": {
       "status": "pending",
       "provider": "Zach via Jeremy",
       "where": "data/manual-2026-09.md",
       "check": "file exists",
-      "checked_on": "2026-10-23"
+      "checked_on": "2026-10-29"
     },
     "outbound_sheet": {
       "status": "pending",
       "provider": "Christine",
       "where": "unknown, no link received",
       "check": "a spreadsheet id written in this entry under sheet_id, then read through Jope_Sheets",
-      "checked_on": "2026-10-23"
+      "checked_on": "2026-10-29"
     },
     "amazon": {
       "status": "done",
