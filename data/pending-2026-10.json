@@ -1,16 +1,21 @@
 {
   "month": "2026-10",
   "published": "2026-11-05",
-  "last_check": "2026-11-05",
+  "last_check": "2026-11-13",
   "last_refresh": null,
+  "last_attempt": {
+    "date": "2026-11-13",
+    "result": "probe incomplete, nothing arrived",
+    "detail": "Only one of the four pending sources could actually be probed. No connector was available in this session: the Gorgias, Google Drive, Google Sheets and Gmail tools were simply absent from the toolset, so calls (Drive folder) and gorgias (warehouse) could not be reached at all. Their checked_on is deliberately left at 2026-11-12, the last date they were really probed. data/manual-2026-10.md was checked on disk and is still absent. outbound_sheet still carries no sheet_id, so there is nothing to probe. Nothing arrived, so the registers and the Return Tracker were deliberately NOT re-read, nothing was published and no email was sent. last_check is set to today because a probe did run today and a second one today would hit the same missing connectors; the next daily wake-up on 2026-11-14 will try again."
+  },
   "sources": {
     "gorgias": {
       "status": "pending",
       "provider": "Zach / Jeremy, connector authorisation",
       "where": "Gorgias connector, warehouse gaia.tickets, canonical queries A to F",
       "check": "mcp get_gaia_instructions then query A returns rows instead of 'requires re-authorization (token expired)'",
-      "checked_on": "2026-11-05",
-      "last_seen": "every call on 2026-11-05 returned 'requires re-authorization (token expired)', including get_gaia_instructions; no query ran",
+      "checked_on": "2026-11-12",
+      "last_seen": "still 'requires re-authorization (token expired)' on 2026-11-12, third failure after 2026-11-05 and 2026-11-11; the server is now listed as disconnected and get_gaia_instructions fails before any query can run. Only Jeremy can clear this, by re-authorising the Gorgias connector in the claude.ai connector settings. Not probed on 2026-11-13: the Gorgias connector was absent from the session toolset, so no call could even be attempted",
       "note": "Gorgias figures are normally frozen at the read of the 5th and never re-read. October was never read at all, so there is no published level to protect: the refresh fills these cards once and that first read becomes the frozen value. verify_refresh.py allows this only while the KPI still reads 'pending'.",
       "fills": [
         "executive KPIs: Contact rate, Tickets replied, Jay solo share, PC conversion",
@@ -28,8 +33,8 @@
       "where": "Drive folder 1e9uuNpdq6vDLklJaNFohT9iIX8kiepRX (Call Metrics 2026 from FreedomVoice)",
       "baseline_modified": "2026-09-01T21:11:50Z",
       "check": "a generalStats*.xls and userStatisticsReport*.xls pair with modifiedTime after baseline_modified whose period covers 2026-10-01 to 2026-10-31 (build_calls_data.py --month 2026-10 --history data/calls-history.json)",
-      "checked_on": "2026-11-05",
-      "last_seen": "folder still holds only the 2026-09-01 pair (generalStats (1).xls, userStatisticsReport (1).xls, modified 2026-09-01T21:10Z), Older subfolder only the 2026-08-26 pair, checked 2026-11-05",
+      "checked_on": "2026-11-12",
+      "last_seen": "folder still holds only the 2026-09-01 pair (generalStats (1).xls modified 2026-09-01T21:10:43Z, userStatisticsReport (1).xls 2026-09-01T21:10:14Z), rechecked 2026-11-12; the 'Older' subfolder 1hXLhxxvcg5o5BNnKm_5Pv5jmxAgrszGB holds only the 2026-08-26 pair (July data), so no file newer than baseline_modified exists in the tree and neither September nor October was ever exported. Not probed on 2026-11-13: the Google Drive connector was absent from the session toolset",
       "note": "September is missing too and is not expected to be recoverable from FreedomVoice, which overwrites its exports. If a September pair appears, run build_calls_data.py for 2026-09 as well so the history keeps both months."
     },
     "manual": {
@@ -37,15 +42,16 @@
       "provider": "Zach via Jeremy",
       "where": "data/manual-2026-10.md",
       "check": "file exists",
-      "checked_on": "2026-11-05",
-      "last_seen": "no manual file since data/manual-2026-07.md"
+      "checked_on": "2026-11-13",
+      "last_seen": "no manual file since data/manual-2026-07.md, rechecked on disk 2026-11-13"
     },
     "outbound_sheet": {
       "status": "pending",
       "provider": "Christine",
       "where": "unknown, no link received",
       "check": "a spreadsheet id written in this entry under sheet_id, then read through Jope_Sheets",
-      "checked_on": "2026-11-05"
+      "checked_on": "2026-11-12",
+      "last_seen": "no sheet_id in this entry on 2026-11-12, so there is nothing to read; the link has to come from Christine before this source can ever be probed"
     },
     "amazon": {
       "status": "done",
