@@ -1,12 +1,12 @@
 {
   "month": "2026-10",
   "published": "2026-11-05",
-  "last_check": "2026-11-17",
+  "last_check": "2026-11-18",
   "last_refresh": null,
   "last_attempt": {
-    "date": "2026-11-17",
+    "date": "2026-11-18",
     "result": "full probe, nothing arrived",
-    "detail": "All four pending sources probed, same picture as 2026-11-16. Gorgias refused a sixth consecutive time with 'requires re-authorization (token expired)': get_gaia_instructions fails before any query can run and the server drops out of the session toolset the moment it is called. The Drive calls folder is byte-for-byte unchanged, newest modifiedTime 2026-09-01T21:11:50Z, equal to baseline_modified, still only the 2026-09-01 pair plus the untouched 'Older' subfolder. data/manual-2026-10.md is still absent on disk. outbound_sheet still carries no sheet_id, so there is nothing to read. Nothing arrived, so the registers and the Return Tracker were deliberately NOT re-read, nothing was published and no email was sent."
+    "detail": "All four pending sources probed, same picture as 2026-11-17. Gorgias refused a seventh consecutive time with 'requires re-authorization (token expired)': get_gaia_instructions fails before any query can run and the server drops out of the session toolset the moment it is called. The Drive calls folder is byte-for-byte unchanged, newest modifiedTime 2026-09-01T21:11:50Z, equal to baseline_modified, still only the 2026-09-01 pair plus the untouched 'Older' subfolder. data/manual-2026-10.md is still absent on disk. outbound_sheet still carries no sheet_id, so there is nothing to read. Nothing arrived, so the registers and the Return Tracker were deliberately NOT re-read, nothing was published and no email was sent."
   },
   "sources": {
     "gorgias": {
@@ -14,8 +14,8 @@
       "provider": "Zach / Jeremy, connector authorisation",
       "where": "Gorgias connector, warehouse gaia.tickets, canonical queries A to F",
       "check": "mcp get_gaia_instructions then query A returns rows instead of 'requires re-authorization (token expired)'",
-      "checked_on": "2026-11-17",
-      "last_seen": "still 'requires re-authorization (token expired)' on 2026-11-17, sixth failure after 2026-11-05, 2026-11-11, 2026-11-12, 2026-11-14 and 2026-11-16; get_gaia_instructions fails before any query can run and the server drops out of the session the moment it is called. Not probed on 2026-11-13 or 2026-11-15, when the connector was absent from the session toolset. Only Jeremy can clear this, by re-authorising the Gorgias connector in the claude.ai connector settings",
+      "checked_on": "2026-11-18",
+      "last_seen": "still 'requires re-authorization (token expired)' on 2026-11-18, seventh failure after 2026-11-05, 2026-11-11, 2026-11-12, 2026-11-14, 2026-11-16 and 2026-11-17; get_gaia_instructions fails before any query can run and the server drops out of the session the moment it is called. Not probed on 2026-11-13 or 2026-11-15, when the connector was absent from the session toolset. Only Jeremy can clear this, by re-authorising the Gorgias connector in the claude.ai connector settings",
       "note": "Gorgias figures are normally frozen at the read of the 5th and never re-read. October was never read at all, so there is no published level to protect: the refresh fills these cards once and that first read becomes the frozen value. verify_refresh.py allows this only while the KPI still reads 'pending'.",
       "fills": [
         "executive KPIs: Contact rate, Tickets replied, Jay solo share, PC conversion",
@@ -33,8 +33,8 @@
       "where": "Drive folder 1e9uuNpdq6vDLklJaNFohT9iIX8kiepRX (Call Metrics 2026 from FreedomVoice)",
       "baseline_modified": "2026-09-01T21:11:50Z",
       "check": "a generalStats*.xls and userStatisticsReport*.xls pair with modifiedTime after baseline_modified whose period covers 2026-10-01 to 2026-10-31 (build_calls_data.py --month 2026-10 --history data/calls-history.json)",
-      "checked_on": "2026-11-17",
-      "last_seen": "folder still holds only the 2026-09-01 pair (generalStats (1).xls modified 2026-09-01T21:10:43Z, userStatisticsReport (1).xls 2026-09-01T21:10:14Z), rechecked 2026-11-17; nothing in the folder is newer than baseline_modified and the 'Older' subfolder 1hXLhxxvcg5o5BNnKm_5Pv5jmxAgrszGB has not been touched since 2026-09-01T21:11:23Z, so it still holds only the 2026-08-26 pair (July data). Neither September nor October was ever exported. Not probed on 2026-11-13: the Google Drive connector was absent from the session toolset",
+      "checked_on": "2026-11-18",
+      "last_seen": "folder still holds only the 2026-09-01 pair (generalStats (1).xls modified 2026-09-01T21:10:43Z, userStatisticsReport (1).xls 2026-09-01T21:10:14Z), rechecked 2026-11-18; nothing in the folder is newer than baseline_modified and the 'Older' subfolder 1hXLhxxvcg5o5BNnKm_5Pv5jmxAgrszGB has not been touched since 2026-09-01T21:11:23Z, so it still holds only the 2026-08-26 pair (July data). Neither September nor October was ever exported. Not probed on 2026-11-13: the Google Drive connector was absent from the session toolset",
       "note": "September is missing too and is not expected to be recoverable from FreedomVoice, which overwrites its exports. If a September pair appears, run build_calls_data.py for 2026-09 as well so the history keeps both months."
     },
     "manual": {
@@ -42,16 +42,16 @@
       "provider": "Zach via Jeremy",
       "where": "data/manual-2026-10.md",
       "check": "file exists",
-      "checked_on": "2026-11-17",
-      "last_seen": "no manual file since data/manual-2026-07.md, rechecked on disk 2026-11-17"
+      "checked_on": "2026-11-18",
+      "last_seen": "no manual file since data/manual-2026-07.md, rechecked on disk 2026-11-18"
     },
     "outbound_sheet": {
       "status": "pending",
       "provider": "Christine",
       "where": "unknown, no link received",
       "check": "a spreadsheet id written in this entry under sheet_id, then read through Jope_Sheets",
-      "checked_on": "2026-11-17",
-      "last_seen": "no sheet_id in this entry on 2026-11-17, so there is nothing to read; the link has to come from Christine before this source can ever be probed"
+      "checked_on": "2026-11-18",
+      "last_seen": "no sheet_id in this entry on 2026-11-18, so there is nothing to read; the link has to come from Christine before this source can ever be probed"
     },
     "amazon": {
       "status": "done",
